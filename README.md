@@ -4,7 +4,7 @@ A Model Context Protocol (MCP) server that provides D2 diagram generation and ma
 
 D2 is a modern diagram scripting language that turns text to diagrams. This MCP server allows AI assistants like Claude to create, render, export, and save D2 diagrams programmatically.
 
-The server provides 10 tools through the MCP protocol with enhanced descriptions for optimal AI assistant integration, enabling both simple diagram rendering and sophisticated incremental diagram building using the Oracle API.
+The server provides 11 tools through the MCP protocol with enhanced descriptions for optimal AI assistant integration, enabling validation, diagram rendering, and sophisticated incremental diagram building using the Oracle API.
 
 With the new Oracle API integration, AI assistants can now build and modify diagrams incrementally, making it perfect for:
 - Converting conversations into architecture diagrams
@@ -19,6 +19,7 @@ With the new Oracle API integration, AI assistants can now build and modify diag
 - **d2_create** - Create new diagrams with optional initial content (unified approach)
 - **d2_export** - Export diagrams to various formats (SVG, PNG, PDF)
 - **d2_save** - Save existing diagrams to files
+- **d2_validate** - Validate raw or stored D2 source and suggest conservative repairs
 
 ### Oracle API for Incremental Editing
 - **d2_oracle_create** - Create shapes and connections incrementally
@@ -246,6 +247,24 @@ Save a diagram to a file:
   "path": "/path/to/output.pdf"  // Optional, defaults to temp directory
 }
 ```
+
+### d2_validate
+
+Validate raw D2 source or the current source of a stored diagram. Supply exactly one input:
+
+```json
+{
+  "content": "a: {\n  b"
+}
+```
+
+```json
+{
+  "diagram_id": "my-diagram"
+}
+```
+
+Invalid D2 returns a successful structured result with `valid: false` and compiler diagnostics. Simple, unambiguous terminator errors may also include `repaired_content`; validation never modifies a stored diagram.
 
 ### Oracle API Tools
 

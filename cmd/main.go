@@ -137,6 +137,7 @@ func main() {
 	createHandler := handler.NewCreateHandler(diagramUseCase)
 	exportHandler := handler.NewExportHandler(diagramUseCase)
 	saveHandler := handler.NewSaveHandler(diagramUseCase)
+	validateHandler := handler.NewValidateHandler(diagramUseCase)
 
 	// Initialize Oracle handlers.
 	oracleCreateHandler := handler.NewOracleCreateHandler(oracleUseCase)
@@ -156,6 +157,9 @@ func main() {
 	}
 	if err := server.RegisterTool(saveHandler.GetTool(), saveHandler.GetHandler()); err != nil {
 		log.Fatalf("Failed to register save tool: %v", err)
+	}
+	if err := server.RegisterTool(validateHandler.GetTool(), validateHandler.GetHandler()); err != nil {
+		log.Fatalf("Failed to register validate tool: %v", err)
 	}
 
 	// Register Oracle tools.

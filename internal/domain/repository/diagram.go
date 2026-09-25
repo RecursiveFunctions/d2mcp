@@ -17,4 +17,10 @@ type DiagramRepository interface {
 
 	// Export exports the diagram to the specified format.
 	Export(ctx context.Context, diagramID string, format entity.ExportFormat) (io.Reader, error)
+
+	// GetContent returns the current D2 source for a stored diagram.
+	GetContent(ctx context.Context, diagramID string) (string, error)
+
+	// Validate validates D2 source without changing repository state.
+	Validate(ctx context.Context, content string) (*entity.DiagramValidationResult, error)
 }
