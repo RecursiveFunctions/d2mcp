@@ -45,6 +45,14 @@ func (m *mockOracleRepository) Export(ctx context.Context, diagramID string, for
 	return nil, nil
 }
 
+func (m *mockOracleRepository) GetContent(ctx context.Context, diagramID string) (string, error) {
+	return "", nil
+}
+
+func (m *mockOracleRepository) Validate(ctx context.Context, content string) (*entity.DiagramValidationResult, error) {
+	return &entity.DiagramValidationResult{Valid: true, Diagnostics: []entity.DiagramDiagnostic{}}, nil
+}
+
 func (m *mockOracleRepository) CreateElement(ctx context.Context, diagramID string, boardPath []string, key string) (*entity.OracleResult, error) {
 	m.createElementCalled = true
 	if m.shouldFail {

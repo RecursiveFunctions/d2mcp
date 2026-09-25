@@ -3,6 +3,7 @@ package d2
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -15,6 +16,7 @@ import (
 	"oss.terrastruct.com/d2/d2graph"
 	"oss.terrastruct.com/d2/d2layouts/d2dagrelayout"
 	"oss.terrastruct.com/d2/d2lib"
+	"oss.terrastruct.com/d2/d2parser"
 	"oss.terrastruct.com/d2/d2renderers/d2svg"
 	"oss.terrastruct.com/d2/lib/log"
 	"oss.terrastruct.com/d2/lib/textmeasure"
@@ -257,4 +259,73 @@ func (r *D2Repository) Export(ctx context.Context, diagramID string, format enti
 
 	// Render the current state
 	return r.Render(ctx, currentContent, format, nil)
+}
+
+// GetContent returns the stored D2 source.
+func (r *D2Repository) GetContent(ctx context.Context, diagramID string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	data, exists := r.diagrams[diagramID]
+	if !exists {
+		return "", fmt.Errorf("diagram %s not found", diagramID)
+	}
+	return data.content, nil
+}
+
+// Validate validates D2 source and normalizes compiler diagnostics.
+func (r *D2Repository) Validate(ctx context.Context, content string) (*entity.DiagramValidationResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	_, _, err := d2compiler.Compile("", strings.NewReader(content), &d2compiler.CompileOptions{
+		UTF16Pos: false,
+	})
+	if err == nil {
+		return &entity.DiagramValidationResult{
+			Valid:       true,
+			Diagnostics: []entity.DiagramDiagnostic{},
+		}, nil
+	}
+
+	result := &entity.DiagramValidationResult{
+		Valid:       false,
+		Diagnostics: []entity.DiagramDiagnostic{},
+	}
+
+	var parseErr *d2parser.ParseError
+	if !errors.As(err, &parseErr) {
+		result.Diagnostics = append(result.Diagnostics, entity.DiagramDiagnostic{
+			Severity: "error",
+			Message:  err.Error(),
+		})
+		return result, nil
+	}
+
+	for _, compilerErr := range parseErr.Errors {
+		message := strings.TrimPrefix(compilerErr.Message, compilerErr.Range.String()+": ")
+		result.Diagnostics = append(result.Diagnostics, entity.DiagramDiagnostic{
+			Severity: "error",
+			Message:  message,
+			Range: &entity.SourceRange{
+				Start: entity.SourcePosition{
+					Line:   compilerErr.Range.Start.Line + 1,
+					Column: compilerErr.Range.Start.Column + 1,
+					Byte:   compilerErr.Range.Start.Byte,
+				},
+				End: entity.SourcePosition{
+					Line:   compilerErr.Range.End.Line + 1,
+					Column: compilerErr.Range.End.Column + 1,
+					Byte:   compilerErr.Range.End.Byte,
+				},
+			},
+		})
+	}
+
+	return result, nil
 }

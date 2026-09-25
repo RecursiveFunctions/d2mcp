@@ -96,6 +96,11 @@ func (r *D2OracleRepository) SerializeDiagram(ctx context.Context, diagramID str
 	return formatted, nil
 }
 
+// GetContent returns the current source, including Oracle edits.
+func (r *D2OracleRepository) GetContent(ctx context.Context, diagramID string) (string, error) {
+	return r.SerializeDiagram(ctx, diagramID)
+}
+
 // CreateElement creates a new shape or connection
 func (r *D2OracleRepository) CreateElement(ctx context.Context, diagramID string, boardPath []string, key string) (*entity.OracleResult, error) {
 	r.mu.Lock()
