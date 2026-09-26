@@ -4,7 +4,7 @@ A Model Context Protocol (MCP) server that provides D2 diagram generation and ma
 
 D2 is a modern diagram scripting language that turns text to diagrams. This MCP server allows AI assistants like Claude to create, render, export, and save D2 diagrams programmatically.
 
-The server provides 11 tools through the MCP protocol with enhanced descriptions for optimal AI assistant integration, enabling validation, diagram rendering, and sophisticated incremental diagram building using the Oracle API.
+The server provides 16 MCP tools for complete-source authoring, validation, rendering, embedded D2 guidance, and incremental Oracle editing.
 
 With the new Oracle API integration, AI assistants can now build and modify diagrams incrementally, making it perfect for:
 - Converting conversations into architecture diagrams
@@ -15,11 +15,16 @@ With the new Oracle API integration, AI assistants can now build and modify diag
 
 ## Features
 
-### Basic Diagram Operations
-- **d2_create** - Create new diagrams with optional initial content (unified approach)
-- **d2_export** - Export diagrams to various formats (SVG, PNG, PDF)
-- **d2_save** - Save existing diagrams to files
-- **d2_validate** - Validate raw or stored D2 source and suggest conservative repairs
+### Source-First Diagram Operations
+- **d2_create** - Create diagrams from complete D2 source or start empty
+- **d2_get_source** - Retrieve the canonical source, including Oracle edits
+- **d2_update_source** - Validate then atomically replace complete source
+- **d2_format** - Format valid source without storing it
+- **d2_validate** - Validate raw or stored source and suggest conservative repairs
+- **d2_export** - Export with bundled D2 v0.9 renderers (SVG, PNG, PDF, PPTX, GIF, ASCII)
+- **d2_save** - Save an export inside a configured workspace root
+- **d2_help** - Search or retrieve embedded D2 v0.9 guidance
+- **d2_capabilities** - List the versioned capability catalog
 
 ### Oracle API for Incremental Editing
 - **d2_oracle_create** - Create shapes and connections incrementally
@@ -31,6 +36,8 @@ With the new Oracle API integration, AI assistants can now build and modify diag
 - **d2_oracle_serialize** - Get the current D2 text representation of the diagram
 
 ### Additional Features
+- **Bundled layouts** - Dagre, ELK, and TALA
+- **Typed rendering** - Layout, theme overrides, bundled fonts, scale, padding, sketch, animation, board selection, and bounded output options
 - **20 themes** - Support for all D2 themes (18 light + 2 dark)
 
 ## Project Structure
@@ -53,11 +60,12 @@ d2mcp/
 
 ## Prerequisites
 
-- Go 1.24.3 or higher
-- D2 v0.6.7 or higher (included as dependency)
-- For PNG/PDF export (optional):
-  - `rsvg-convert` (from librsvg) or
-  - ImageMagick (`convert` command)
+- Go 1.27 or higher
+- D2 v0.9.0 (included as a Go dependency)
+
+All export formats use bundled Go renderers; no `rsvg-convert`, ImageMagick, or Chromium installation is required.
+
+The embedded capability catalog is based on the official [D2 language tour](https://d2lang.com/tour/intro/), [D2 API documentation](https://d2lang.com/tour/api/), and [D2 v0.9.0 release](https://github.com/d2lang/d2/releases/tag/v0.9.0).
 
 ## Installation
 
@@ -204,6 +212,20 @@ The modern HTTP-based transport that simplifies bidirectional communication:
 When running in Streamable HTTP mode, a single endpoint handles all communication:
 - Endpoint: `http://localhost:3000/mcp`
 
+### Workspace and Asset Security
+
+The server confines imports, local images, and saved files to named workspace roots. The default root is the server's current working directory.
+
+```bash
+./d2mcp -transport=stdio \
+  -workspace-root=docs=/workspace/docs \
+  -workspace-root=diagrams=/workspace/diagrams \
+  -remote-asset-max-bytes=10485760 \
+  -remote-asset-timeout=30s
+```
+
+`-workspace-root` is repeatable. Local path traversal and symlink escapes are rejected. Remote assets require HTTPS and are subject to DNS/IP, redirect, timeout, MIME, and response-size checks; loopback and private-network destinations are rejected.
+
 ## Tools
 
 ### d2_create
@@ -217,36 +239,48 @@ Create a new diagram with optional initial content (unified approach):
 }
 ```
 
-**With initial D2 content:**
+**With initial D2 content and a named workspace for imports/assets:**
 ```json
 {
   "id": "my-diagram",
-  "content": "a -> b: Hello\nserver: {shape: cylinder}"
+  "content": "a -> b: Hello\nserver: {shape: cylinder}",
+  "workspace_root": "diagrams"
 }
 ```
 
 ### d2_export
 
-Export a diagram to a specific format:
+Export a diagram using a bundled renderer and layout engine:
 
 ```json
 {
   "diagramId": "my-diagram",
-  "format": "png"  // Options: "svg", "png", "pdf"
+  "format": "png",
+  "layout": "tala",
+  "themeId": 200,
+  "scale": 1.5,
+  "maxPixels": 33554432
 }
 ```
 
+Formats are `svg`, `png`, `pdf`, `pptx`, `gif`, and `ascii` (`txt` is an alias). Layouts are `dagre`, `elk`, and `tala`. Typed options cover engine spacing, themes and overrides, bundled fonts, padding, scale, sketch mode, animation, board selection, and resource limits.
+
+PDF, PPTX, GIF, and optionally animated SVG compose bounded descendant boards. PNG and ASCII produce one board; use `boardPath` to select one from a composition.
+
 ### d2_save
 
-Save a diagram to a file:
+Save a diagram inside a configured workspace root:
 
 ```json
 {
   "diagramId": "my-diagram",
   "format": "pdf",
-  "path": "/path/to/output.pdf"  // Optional, defaults to temp directory
+  "workspace_root": "diagrams",
+  "path": "exports/output.pdf"
 }
 ```
+
+If `path` is omitted, output is written below `d2mcp_output/` in the selected root.
 
 ### d2_validate
 
@@ -265,6 +299,39 @@ Validate raw D2 source or the current source of a stored diagram. Supply exactly
 ```
 
 Invalid D2 returns a successful structured result with `valid: false` and compiler diagnostics. Simple, unambiguous terminator errors may also include `repaired_content`; validation never modifies a stored diagram.
+
+### d2_get_source and d2_update_source
+
+Complete D2 source is canonical, so every bundled v0.9 language feature can be authored without waiting for a specialized structured tool.
+
+```json
+{"diagram_id": "my-diagram"}
+```
+
+```json
+{
+  "diagram_id": "my-diagram",
+  "content": "direction: right\nclient -> api -> database"
+}
+```
+
+Updates compile first and replace atomically. Invalid drafts return structured diagnostics and leave stored source unchanged.
+
+### d2_format
+
+```json
+{"content": "api:{db}"}
+```
+
+Returns formatted source without creating or changing a diagram.
+
+### d2_help and d2_capabilities
+
+```json
+{"query": "sequence diagrams", "limit": 5}
+```
+
+`d2_help` searches the embedded v0.9.0 reference or returns an exact topic by ID. `d2_capabilities` lists its categories and MCP resource URIs. Embedded resources cover the core language, connections, reusable definitions, visuals, rich text, structured/sequence/grid diagrams, composition, layouts, and exports.
 
 ### Oracle API Tools
 
@@ -430,9 +497,12 @@ d2_export({ diagramId: "architecture", format: "svg" })
 
 ### When to Use Each Tool
 
-- **d2_create**: Always use for new diagrams - both empty (for incremental building) and with initial D2 content
-- **d2_oracle_***: Use for incremental modifications to any diagram created with d2_create
-- **d2_export**: Use to render the final diagram in your desired format
+- **d2_create**: Create a stored source document, optionally bound to a named workspace root
+- **d2_update_source**: Author or replace any complete D2 v0.9 document atomically
+- **d2_oracle_***: Make convenient structured edits; each mutation is revalidated before commit
+- **d2_get_source**: Retrieve the canonical source after either editing workflow
+- **d2_help / d2_capabilities**: Discover supported syntax, composition, layouts, and exports
+- **d2_export / d2_save**: Render in memory or save within an allowed workspace root
 
 ## Development
 
@@ -481,27 +551,9 @@ make clean
 
 ## Troubleshooting
 
-### PNG/PDF Export Not Working
+### Export Limit Errors
 
-If you get errors when exporting to PNG or PDF formats, install one of these tools:
-
-**macOS**:
-```bash
-# Using Homebrew
-brew install librsvg
-# or
-brew install imagemagick
-```
-
-**Ubuntu/Debian**:
-```bash
-sudo apt-get install librsvg2-bin
-# or
-sudo apt-get install imagemagick
-```
-
-**Windows**:
-Download and install ImageMagick from the official website.
+PNG, PDF, PPTX, and GIF exports are produced by D2's bundled Go raster pipeline. If a diagram exceeds a resource ceiling, reduce its scale or board count, select a specific `boardPath`, or set an allowed bounded `maxWidth`, `maxHeight`, `maxPixels`, `maxFrames`, or `maxOutputBytes` value.
 
 ### MCP Connection Issues
 
