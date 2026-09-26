@@ -1,0 +1,18 @@
+{
+  "servers": {
+    "d2mcp": {
+      "type": "stdio",
+      "command": "wsl.exe",
+      "args": [
+        "-d",
+        "Ubuntu",
+        "--cd",
+        "/home/ray/github/d2mcp",
+        "--",
+        "/home/ray/github/d2mcp/d2mcp",
+        "-transport=stdio",
+        "-workspace-root=repo=/home/ray/github/d2mcp"
+      ]
+    }
+  }
+}
