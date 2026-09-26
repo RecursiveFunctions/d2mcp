@@ -1,0 +1,124 @@
+direction: right
+
+classes: {
+  external: {
+    shape: rectangle
+    style.fill: "#E8F1FF"
+    style.stroke: "#356AA0"
+    style.border-radius: 8
+  }
+  boundary: {
+    style.fill: "#F8FAFC"
+    style.stroke: "#334155"
+    style.stroke-width: 2
+    style.border-radius: 10
+  }
+  component: {
+    style.fill: "#FFFFFF"
+    style.stroke: "#64748B"
+    style.border-radius: 6
+  }
+  security: {
+    style.fill: "#ECFDF5"
+    style.stroke: "#047857"
+    style.border-radius: 6
+  }
+  dependency: {
+    style.fill: "#FFF7ED"
+    style.stroke: "#C2410C"
+    style.border-radius: 6
+  }
+  storage: {
+    shape: cylinder
+    style.fill: "#F5F3FF"
+    style.stroke: "#6D28D9"
+  }
+}
+
+client: VS Code / MCP Client {
+  class: external
+}
+
+server: d2mcp Go Server {
+  class: boundary
+
+  transports: MCP Transports {
+    class: component
+    stdio: STDIO
+    sse: SSE
+    streamable: Streamable HTTP
+  }
+
+  presentation: Presentation / Tool Handlers {
+    class: component
+    source_tools: Source authoring
+    render_tools: Export and save
+    oracle_tools: Oracle editing
+    guidance_tools: Help and capabilities
+  }
+
+  application: Application Use Cases {
+    class: component
+    diagram_uc: Diagram lifecycle
+    validation_uc: Validation and repair
+    oracle_uc: Transactional edits
+  }
+
+  domain: Domain Contracts {
+    class: component
+    entities: Diagram, render, validation entities
+    repositories: Repository interfaces
+  }
+
+  infrastructure: Infrastructure {
+    class: component
+    d2_repo: D2 repository
+    mcp_server: MCP server adapter
+    catalog: Embedded v0.9 reference
+  }
+
+  security: Security Boundary {
+    class: security
+    roots: Named workspace roots
+    assets: Local asset resolver
+    remote: Bounded HTTPS client
+  }
+}
+
+d2: D2 v0.9.0 Libraries {
+  class: dependency
+  compiler: Compiler and formatter
+  layouts: Dagre / ELK / TALA
+  renderers: SVG / PNG / PDF / PPTX / GIF / ASCII
+  oracle: Oracle graph editing
+}
+
+memory: In-memory diagrams and sessions {
+  class: storage
+}
+
+workspace: Workspace files, imports, and exports {
+  class: storage
+}
+
+internet: HTTPS image assets {
+  class: external
+}
+
+client -> server.transports: JSON-RPC
+server.transports -> server.infrastructure.mcp_server
+server.infrastructure.mcp_server -> server.presentation
+server.presentation -> server.application
+server.application -> server.domain
+server.application -> server.infrastructure.d2_repo
+server.application -> server.infrastructure.catalog: search / read
+server.infrastructure.d2_repo -> d2.compiler
+server.infrastructure.d2_repo -> d2.layouts: selected engine
+server.infrastructure.d2_repo -> d2.renderers
+server.infrastructure.d2_repo -> d2.oracle
+server.infrastructure.d2_repo -> memory: synchronized state
+server.infrastructure.d2_repo -> server.security
+server.security.roots -> workspace: confined access
+server.security.assets -> workspace: local assets
+server.security.remote -> internet: HTTPS only
+server.presentation.render_tools -> workspace: confined save
