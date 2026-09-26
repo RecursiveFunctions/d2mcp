@@ -83,6 +83,12 @@ func (s *Server) RegisterTool(tool mcp.Tool, handler server.ToolHandlerFunc) err
 	return nil
 }
 
+// RegisterResource registers a resource with the MCP server.
+func (s *Server) RegisterResource(resource mcp.Resource, handler server.ResourceHandlerFunc) error {
+	s.mcpServer.AddResource(resource, handler)
+	return nil
+}
+
 // Start starts the MCP server with the configured transport.
 func (s *Server) Start(ctx context.Context) error {
 	switch s.transport {

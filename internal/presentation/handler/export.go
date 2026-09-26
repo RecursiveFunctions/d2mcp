@@ -27,12 +27,13 @@ func NewExportHandler(useCase *usecase.DiagramUseCase) *ExportHandler {
 
 // GetTool returns the MCP tool definition.
 func (h *ExportHandler) GetTool() mcp.Tool {
-	return mcp.NewTool(
-		"d2_export",
-		mcp.WithDescription("Export an existing diagram to SVG, PNG, or PDF format. The diagram must first be created using d2_create (not d2_render). Supports exporting all D2 features including SQL tables, UML classes, sequence diagrams, code blocks, and markdown-rich documentation. Note: PNG and PDF formats require external tools (e.g., Chromium) to be installed on the system."),
+	options := []mcp.ToolOption{
+		mcp.WithDescription("Export an existing diagram with D2 v0.9's bundled Go renderers. Supports SVG, PNG, PDF, PPTX, GIF, and ASCII plus Dagre, ELK, and TALA."),
 		mcp.WithString("diagramId", mcp.Description("ID of the diagram to export"), mcp.Required()),
-		mcp.WithString("format", mcp.Description("Export format (svg, png, pdf)"), mcp.Enum("svg", "png", "pdf"), mcp.DefaultString("svg")),
-	)
+		mcp.WithString("format", mcp.Description("Export format"), mcp.Enum("svg", "png", "pdf", "pptx", "gif", "ascii", "txt"), mcp.DefaultString("svg")),
+	}
+	options = append(options, renderToolOptions()...)
+	return mcp.NewTool("d2_export", options...)
 }
 
 // GetHandler returns the tool handler function.
@@ -50,9 +51,13 @@ func (h *ExportHandler) Handle(ctx context.Context, request mcp.CallToolRequest)
 
 	formatStr := mcp.ParseString(request, "format", "svg")
 	format := entity.ExportFormat(formatStr)
+	options, err := parseRenderOptions(request)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 
 	// Export the diagram.
-	reader, err := h.useCase.ExportDiagram(ctx, diagramID, format)
+	reader, err := h.useCase.ExportDiagramWithOptions(ctx, diagramID, format, options)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("Failed to export diagram", err), nil
 	}
@@ -63,8 +68,8 @@ func (h *ExportHandler) Handle(ctx context.Context, request mcp.CallToolRequest)
 		return mcp.NewToolResultErrorFromErr("Failed to read exported data", err), nil
 	}
 
-	// Return result based on format.
-	if format == entity.FormatSVG {
+	// Return text formats directly.
+	if format == entity.FormatSVG || format == entity.FormatASCII || format == "txt" {
 		return mcp.NewToolResultText(string(data)), nil
 	}
 
@@ -82,6 +87,12 @@ func getMimeType(format entity.ExportFormat) string {
 		return "image/png"
 	case entity.FormatPDF:
 		return "application/pdf"
+	case entity.FormatPPTX:
+		return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	case entity.FormatGIF:
+		return "image/gif"
+	case entity.FormatASCII, "txt":
+		return "text/plain; charset=utf-8"
 	default:
 		return "image/svg+xml"
 	}

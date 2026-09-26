@@ -9,6 +9,9 @@ import (
 	"os"
 	"time"
 
+	mcpapi "github.com/mark3labs/mcp-go/mcp"
+
+	"github.com/i2y/d2mcp/internal/catalog"
 	"github.com/i2y/d2mcp/internal/infrastructure/d2"
 	"github.com/i2y/d2mcp/internal/infrastructure/mcp"
 	"github.com/i2y/d2mcp/internal/presentation/handler"
@@ -36,6 +39,9 @@ func main() {
 		endpointPath      string
 		heartbeatInterval int
 		stateless         bool
+		workspaceRoots    workspaceRootFlags
+		maxAssetBytes     int64
+		assetTimeout      time.Duration
 	)
 	flag.StringVar(&transport, "transport", "sse", "Transport mode: stdio, sse, or streamable")
 	flag.StringVar(&addr, "addr", ":3000", "Address to listen on for SSE/Streamable HTTP transport (e.g., :3000)")
@@ -45,6 +51,9 @@ func main() {
 	flag.StringVar(&endpointPath, "endpoint-path", "/mcp", "Endpoint path for Streamable HTTP transport")
 	flag.IntVar(&heartbeatInterval, "heartbeat-interval", 30, "Heartbeat interval in seconds for Streamable HTTP")
 	flag.BoolVar(&stateless, "stateless", false, "Enable stateless mode for Streamable HTTP")
+	flag.Var(&workspaceRoots, "workspace-root", "Workspace root as name=path; repeat for additional roots (default root is CWD)")
+	flag.Int64Var(&maxAssetBytes, "remote-asset-max-bytes", 10<<20, "Maximum bytes allowed for each local or remote image asset")
+	flag.DurationVar(&assetTimeout, "remote-asset-timeout", 30*time.Second, "Overall timeout for remote image asset requests")
 	flag.Parse()
 
 	// Validate transport mode.
@@ -79,8 +88,21 @@ func main() {
 	// Create context.
 	ctx := context.Background()
 
+	// Initialize confined workspaces and remote asset policy.
+	workspaces, assetClient, err := configureSecurity(workspaceRoots, maxAssetBytes, assetTimeout)
+	if err != nil {
+		log.Fatalf("Failed to configure security: %v", err)
+	}
+
 	// Initialize repository.
-	oracleRepo := d2.NewD2OracleRepository()
+	oracleRepo, err := d2.NewD2OracleRepositoryWithSecurity(d2.SecurityConfig{
+		Workspaces:    workspaces,
+		HTTPClient:    assetClient,
+		MaxAssetBytes: maxAssetBytes,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize D2 repository: %v", err)
+	}
 
 	// Initialize usecases.
 	diagramUseCase := usecase.NewDiagramUseCase(oracleRepo)
@@ -136,8 +158,13 @@ func main() {
 	// Initialize handlers.
 	createHandler := handler.NewCreateHandler(diagramUseCase)
 	exportHandler := handler.NewExportHandler(diagramUseCase)
-	saveHandler := handler.NewSaveHandler(diagramUseCase)
+	saveHandler := handler.NewSaveHandler(diagramUseCase, workspaces)
 	validateHandler := handler.NewValidateHandler(diagramUseCase)
+	getSourceHandler := handler.NewGetSourceHandler(diagramUseCase)
+	updateSourceHandler := handler.NewUpdateSourceHandler(diagramUseCase)
+	formatHandler := handler.NewFormatHandler(diagramUseCase)
+	helpHandler := handler.NewHelpHandler()
+	capabilitiesHandler := handler.NewCapabilitiesHandler()
 
 	// Initialize Oracle handlers.
 	oracleCreateHandler := handler.NewOracleCreateHandler(oracleUseCase)
@@ -160,6 +187,35 @@ func main() {
 	}
 	if err := server.RegisterTool(validateHandler.GetTool(), validateHandler.GetHandler()); err != nil {
 		log.Fatalf("Failed to register validate tool: %v", err)
+	}
+	if err := server.RegisterTool(getSourceHandler.GetTool(), getSourceHandler.GetHandler()); err != nil {
+		log.Fatalf("Failed to register get source tool: %v", err)
+	}
+	if err := server.RegisterTool(updateSourceHandler.GetTool(), updateSourceHandler.GetHandler()); err != nil {
+		log.Fatalf("Failed to register update source tool: %v", err)
+	}
+	if err := server.RegisterTool(formatHandler.GetTool(), formatHandler.GetHandler()); err != nil {
+		log.Fatalf("Failed to register format tool: %v", err)
+	}
+	if err := server.RegisterTool(helpHandler.GetTool(), helpHandler.GetHandler()); err != nil {
+		log.Fatalf("Failed to register help tool: %v", err)
+	}
+	if err := server.RegisterTool(capabilitiesHandler.GetTool(), capabilitiesHandler.GetHandler()); err != nil {
+		log.Fatalf("Failed to register capabilities tool: %v", err)
+	}
+
+	for _, category := range catalog.ListCategories() {
+		for _, entry := range catalog.ListCategory(category.ID) {
+			resource := mcpapi.NewResource(
+				entry.URI,
+				entry.Title,
+				mcpapi.WithResourceDescription(entry.Summary),
+				mcpapi.WithMIMEType(catalog.ResourceMIMEType),
+			)
+			if err := server.RegisterResource(resource, handler.CatalogResourceHandler); err != nil {
+				log.Fatalf("Failed to register catalog resource %s: %v", entry.ID, err)
+			}
+		}
 	}
 
 	// Register Oracle tools.
