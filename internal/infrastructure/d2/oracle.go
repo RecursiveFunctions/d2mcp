@@ -7,14 +7,14 @@ import (
 	"sync"
 	"time"
 
-	"oss.terrastruct.com/d2/d2ast"
-	"oss.terrastruct.com/d2/d2compiler"
-	"oss.terrastruct.com/d2/d2format"
-	"oss.terrastruct.com/d2/d2graph"
-	"oss.terrastruct.com/d2/d2oracle"
+	"github.com/d2lang/d2/d2ast"
+	"github.com/d2lang/d2/d2format"
+	"github.com/d2lang/d2/d2graph"
+	"github.com/d2lang/d2/d2oracle"
 
 	"github.com/i2y/d2mcp/internal/domain/entity"
 	"github.com/i2y/d2mcp/internal/domain/repository"
+	"github.com/i2y/d2mcp/internal/security/workspace"
 )
 
 // OracleSession represents an active Oracle editing session
@@ -33,34 +33,67 @@ type D2OracleRepository struct {
 	sessionMu sync.RWMutex
 }
 
-// NewD2OracleRepository creates a new D2 repository with Oracle support
+// NewD2OracleRepository creates a new D2 repository with Oracle support.
 func NewD2OracleRepository() repository.OracleRepository {
-	return &D2OracleRepository{
-		D2Repository: &D2Repository{
-			diagrams: make(map[string]*diagramData),
-		},
-		sessions: make(map[string]*OracleSession),
+	repository, err := NewD2OracleRepositoryWithSecurity(SecurityConfig{})
+	if err != nil {
+		panic(err)
 	}
+	return repository
 }
 
-// LoadDiagram loads a diagram from D2 text
-func (r *D2OracleRepository) LoadDiagram(ctx context.Context, diagramID string, content string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+// NewD2OracleRepositoryWithSecurity creates an Oracle repository with explicit security dependencies.
+func NewD2OracleRepositoryWithSecurity(config SecurityConfig) (repository.OracleRepository, error) {
+	base, err := newD2Repository(config)
+	if err != nil {
+		return nil, err
+	}
+	return &D2OracleRepository{
+		D2Repository: base,
+		sessions:     make(map[string]*OracleSession),
+	}, nil
+}
 
-	// Parse the content to create a graph
-	graph, _, err := d2compiler.Compile("", strings.NewReader(content), &d2compiler.CompileOptions{
-		UTF16Pos: false,
-	})
+// LoadDiagram loads a diagram from D2 text.
+func (r *D2OracleRepository) LoadDiagram(ctx context.Context, diagramID string, content string) error {
+	return r.replaceContent(ctx, diagramID, content, false)
+}
+
+// ReplaceContent validates content before atomically replacing stored source.
+func (r *D2OracleRepository) ReplaceContent(ctx context.Context, diagramID, content string) error {
+	return r.replaceContent(ctx, diagramID, content, true)
+}
+
+func (r *D2OracleRepository) replaceContent(ctx context.Context, diagramID, content string, requireExisting bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	rootName := workspace.DefaultRoot
+	r.mu.RLock()
+	existing, exists := r.diagrams[diagramID]
+	if exists && existing.workspaceRoot != "" {
+		rootName = existing.workspaceRoot
+	}
+	r.mu.RUnlock()
+	if requireExisting && !exists {
+		return fmt.Errorf("diagram %s not found", diagramID)
+	}
+	graph, err := r.compileGraph(rootName, content)
 	if err != nil {
 		return fmt.Errorf("failed to compile diagram: %w", err)
 	}
 
-	r.diagrams[diagramID] = &diagramData{
-		content: content,
-		graph:   graph,
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if requireExisting {
+		if _, exists := r.diagrams[diagramID]; !exists {
+			return fmt.Errorf("diagram %s not found", diagramID)
+		}
 	}
-
+	r.sessionMu.Lock()
+	defer r.sessionMu.Unlock()
+	r.diagrams[diagramID] = &diagramData{content: content, graph: graph, workspaceRoot: rootName}
+	delete(r.sessions, diagramID)
 	return nil
 }
 
@@ -120,16 +153,8 @@ func (r *D2OracleRepository) CreateElement(ctx context.Context, diagramID string
 		return nil, fmt.Errorf("failed to create element: %w", err)
 	}
 
-	// Update session
-	session.Graph = newGraph
-	session.LastModified = time.Now()
-
-	// Update stored graph
-	data.graph = newGraph
-
-	// Serialize back to D2 text
-	if newGraph.AST != nil {
-		data.content = d2format.Format(newGraph.AST)
+	if err := r.commitOracleGraph(ctx, data, session, newGraph); err != nil {
+		return nil, fmt.Errorf("created element produced invalid source: %w", err)
 	}
 
 	return &entity.OracleResult{
@@ -156,15 +181,8 @@ func (r *D2OracleRepository) SetAttribute(ctx context.Context, diagramID string,
 	if err != nil {
 		return nil, fmt.Errorf("failed to set attribute: %w", err)
 	}
-
-	// Update session and stored graph
-	session.Graph = newGraph
-	session.LastModified = time.Now()
-	data.graph = newGraph
-
-	// Serialize back to D2 text
-	if newGraph.AST != nil {
-		data.content = d2format.Format(newGraph.AST)
+	if err := r.commitOracleGraph(ctx, data, session, newGraph); err != nil {
+		return nil, fmt.Errorf("attribute update produced invalid source: %w", err)
 	}
 
 	return &entity.OracleResult{
@@ -210,14 +228,8 @@ func (r *D2OracleRepository) DeleteElement(ctx context.Context, diagramID string
 	func() {
 		defer func() {
 			if panicErr := recover(); panicErr != nil {
-				// If panic occurs during delete, try alternative approach for connections
 				if isConnection {
-					// For connections, we'll recreate the graph without this connection
-					deleteErr = r.deleteConnectionWorkaround(ctx, diagramID, key)
-					if deleteErr == nil {
-						// Reload the graph after workaround
-						newGraph = r.diagrams[diagramID].graph
-					}
+					newGraph, deleteErr = r.deleteConnectionWorkaround(ctx, diagramID, key)
 				} else {
 					deleteErr = fmt.Errorf("failed to delete element: panic occurred - %v", panicErr)
 				}
@@ -232,14 +244,8 @@ func (r *D2OracleRepository) DeleteElement(ctx context.Context, diagramID string
 		return nil, deleteErr
 	}
 
-	// Update session and stored graph
-	session.Graph = newGraph
-	session.LastModified = time.Now()
-	data.graph = newGraph
-
-	// Serialize back to D2 text
-	if newGraph.AST != nil {
-		data.content = d2format.Format(newGraph.AST)
+	if err := r.commitOracleGraph(ctx, data, session, newGraph); err != nil {
+		return nil, fmt.Errorf("delete produced invalid source: %w", err)
 	}
 
 	return &entity.OracleResult{
@@ -266,15 +272,8 @@ func (r *D2OracleRepository) MoveElement(ctx context.Context, diagramID string, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to move element: %w", err)
 	}
-
-	// Update session and stored graph
-	session.Graph = newGraph
-	session.LastModified = time.Now()
-	data.graph = newGraph
-
-	// Serialize back to D2 text
-	if newGraph.AST != nil {
-		data.content = d2format.Format(newGraph.AST)
+	if err := r.commitOracleGraph(ctx, data, session, newGraph); err != nil {
+		return nil, fmt.Errorf("move produced invalid source: %w", err)
 	}
 
 	return &entity.OracleResult{
@@ -306,15 +305,8 @@ func (r *D2OracleRepository) RenameElement(ctx context.Context, diagramID string
 	if err != nil {
 		return nil, fmt.Errorf("failed to rename element: %w", err)
 	}
-
-	// Update session and stored graph
-	session.Graph = newGraph
-	session.LastModified = time.Now()
-	data.graph = newGraph
-
-	// Serialize back to D2 text
-	if newGraph.AST != nil {
-		data.content = d2format.Format(newGraph.AST)
+	if err := r.commitOracleGraph(ctx, data, session, newGraph); err != nil {
+		return nil, fmt.Errorf("rename produced invalid source: %w", err)
 	}
 
 	return &entity.OracleResult{
@@ -383,6 +375,28 @@ func (r *D2OracleRepository) GetChildren(ctx context.Context, diagramID string, 
 
 // Helper methods
 
+func (r *D2OracleRepository) commitOracleGraph(ctx context.Context, data *diagramData, session *OracleSession, graph *d2graph.Graph) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if graph == nil || graph.AST == nil {
+		return fmt.Errorf("Oracle returned a graph without source")
+	}
+	content := d2format.Format(graph.AST)
+	rootName := data.workspaceRoot
+	if rootName == "" {
+		rootName = workspace.DefaultRoot
+	}
+	if _, err := r.compileGraph(rootName, content); err != nil {
+		return err
+	}
+	session.Graph = graph
+	session.LastModified = time.Now()
+	data.graph = graph
+	data.content = content
+	return nil
+}
+
 func (r *D2OracleRepository) getOrCreateSession(diagramID string, graph *d2graph.Graph) *OracleSession {
 	r.sessionMu.Lock()
 	defer r.sessionMu.Unlock()
@@ -404,11 +418,11 @@ func (r *D2OracleRepository) getOrCreateSession(diagramID string, graph *d2graph
 
 // deleteConnectionWorkaround handles connection deletion when Oracle API panics
 // Note: This method assumes the caller already holds the mutex lock
-func (r *D2OracleRepository) deleteConnectionWorkaround(ctx context.Context, diagramID string, connectionKey string) error {
+func (r *D2OracleRepository) deleteConnectionWorkaround(ctx context.Context, diagramID string, connectionKey string) (*d2graph.Graph, error) {
 	// Get current data - no lock needed as caller already has it
 	data, exists := r.diagrams[diagramID]
 	if !exists {
-		return fmt.Errorf("diagram %s not found", diagramID)
+		return nil, fmt.Errorf("diagram %s not found", diagramID)
 	}
 
 	// Get current D2 text from the data
@@ -420,7 +434,7 @@ func (r *D2OracleRepository) deleteConnectionWorkaround(ctx context.Context, dia
 	// Parse the connection key (e.g., "Customer -> Order")
 	parts := strings.Split(connectionKey, "->")
 	if len(parts) != 2 {
-		return fmt.Errorf("invalid connection key format: %s", connectionKey)
+		return nil, fmt.Errorf("invalid connection key format: %s", connectionKey)
 	}
 
 	src := strings.TrimSpace(parts[0])
@@ -444,21 +458,16 @@ func (r *D2OracleRepository) deleteConnectionWorkaround(ctx context.Context, dia
 
 	newD2 := strings.Join(newLines, "\n")
 
-	// Compile the new D2 text directly without calling LoadDiagram to avoid deadlock
-	graph, _, err := d2compiler.Compile("", strings.NewReader(newD2), &d2compiler.CompileOptions{
-		UTF16Pos: false,
-	})
+	// Compile the new D2 text directly without calling LoadDiagram to avoid deadlock.
+	rootName := data.workspaceRoot
+	if rootName == "" {
+		rootName = workspace.DefaultRoot
+	}
+	graph, err := r.compileGraph(rootName, newD2)
 	if err != nil {
-		return fmt.Errorf("failed to compile diagram after removing connection: %w", err)
+		return nil, fmt.Errorf("failed to compile diagram after removing connection: %w", err)
 	}
-
-	// Update the diagram data directly
-	r.diagrams[diagramID] = &diagramData{
-		content: newD2,
-		graph:   graph,
-	}
-
-	return nil
+	return graph, nil
 }
 
 func (r *D2OracleRepository) graphToEntity(graph *d2graph.Graph) *entity.DiagramGraph {

@@ -24,3 +24,21 @@ type DiagramRepository interface {
 	// Validate validates D2 source without changing repository state.
 	Validate(ctx context.Context, content string) (*entity.DiagramValidationResult, error)
 }
+
+// RenderOptionsRepository supports the complete typed D2 v0.9 render surface.
+// It is separate from DiagramRepository to preserve existing implementations.
+type RenderOptionsRepository interface {
+	RenderWithOptions(ctx context.Context, content string, format entity.ExportFormat, options entity.RenderOptions) (io.Reader, error)
+	ExportWithOptions(ctx context.Context, diagramID string, format entity.ExportFormat, options entity.RenderOptions) (io.Reader, error)
+}
+
+// SourceRepository supports canonical source replacement and formatting.
+type SourceRepository interface {
+	DiagramRepository
+
+	// ReplaceContent validates content before atomically replacing stored source.
+	ReplaceContent(ctx context.Context, diagramID, content string) error
+
+	// FormatContent formats valid D2 source without storing it.
+	FormatContent(ctx context.Context, content string) (string, error)
+}

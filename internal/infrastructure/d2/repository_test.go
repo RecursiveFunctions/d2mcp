@@ -25,16 +25,16 @@ func TestD2Repository_Render(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "render PNG requires external tool",
+			name:    "render PNG with bundled renderer",
 			content: "a -> b",
 			format:  entity.FormatPNG,
-			wantErr: false, // May succeed if rsvg-convert or imagemagick is installed
+			wantErr: false,
 		},
 		{
-			name:    "render PDF requires external tool",
+			name:    "render PDF with bundled renderer",
 			content: "a -> b",
 			format:  entity.FormatPDF,
-			wantErr: false, // May succeed if rsvg-convert or imagemagick is installed
+			wantErr: false,
 		},
 		{
 			name:    "invalid content",

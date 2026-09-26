@@ -2,10 +2,11 @@ package entity
 
 // Diagram represents a D2 diagram entity.
 type Diagram struct {
-	ID      string
-	Content string
-	Format  ExportFormat
-	Theme   *Theme
+	ID            string
+	Content       string
+	WorkspaceRoot string
+	Format        ExportFormat
+	Theme         *Theme
 }
 
 // ExportFormat represents the output format for diagram export.
