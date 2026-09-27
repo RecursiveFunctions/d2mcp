@@ -8,10 +8,10 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/i2y/d2mcp/internal/domain/entity"
-	d2infra "github.com/i2y/d2mcp/internal/infrastructure/d2"
-	"github.com/i2y/d2mcp/internal/security/workspace"
-	"github.com/i2y/d2mcp/internal/usecase"
+	"github.com/recursivefunctions/d2mcp/internal/domain/entity"
+	d2infra "github.com/recursivefunctions/d2mcp/internal/infrastructure/d2"
+	"github.com/recursivefunctions/d2mcp/internal/security/workspace"
+	"github.com/recursivefunctions/d2mcp/internal/usecase"
 )
 
 func TestSaveHandlerConfinesOutputToSelectedWorkspace(t *testing.T) {
