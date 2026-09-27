@@ -16,7 +16,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/i2y/d2mcp/internal/security/workspace"
+	"github.com/recursivefunctions/d2mcp/internal/security/workspace"
 )
 
 const DefaultMaxBytes int64 = 10 << 20

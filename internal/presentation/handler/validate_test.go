@@ -8,8 +8,8 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/i2y/d2mcp/internal/domain/entity"
-	"github.com/i2y/d2mcp/internal/usecase"
+	"github.com/recursivefunctions/d2mcp/internal/domain/entity"
+	"github.com/recursivefunctions/d2mcp/internal/usecase"
 )
 
 type handlerValidationRepository struct{}
