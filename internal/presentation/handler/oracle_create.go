@@ -7,8 +7,8 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
-	"github.com/i2y/d2mcp/internal/domain/entity"
-	"github.com/i2y/d2mcp/internal/usecase"
+	"github.com/recursivefunctions/d2mcp/internal/domain/entity"
+	"github.com/recursivefunctions/d2mcp/internal/usecase"
 )
 
 // OracleCreateHandler handles the d2_oracle_create tool.

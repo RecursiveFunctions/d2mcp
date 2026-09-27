@@ -9,7 +9,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
-	"github.com/i2y/d2mcp/internal/catalog"
+	"github.com/recursivefunctions/d2mcp/internal/catalog"
 )
 
 // HelpHandler handles the d2_help tool.
