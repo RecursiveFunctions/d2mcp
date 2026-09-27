@@ -32,8 +32,8 @@ import (
 	"github.com/d2lang/d2/lib/textmeasure"
 	"github.com/d2lang/d2/lib/xgif"
 
-	"github.com/i2y/d2mcp/internal/domain/entity"
-	"github.com/i2y/d2mcp/internal/security/workspace"
+	"github.com/recursivefunctions/d2mcp/internal/domain/entity"
+	"github.com/recursivefunctions/d2mcp/internal/security/workspace"
 )
 
 const (

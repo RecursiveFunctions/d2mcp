@@ -16,11 +16,11 @@ import (
 	"github.com/d2lang/d2/d2parser"
 	"github.com/d2lang/d2/lib/log"
 
-	"github.com/i2y/d2mcp/internal/domain/entity"
-	"github.com/i2y/d2mcp/internal/domain/repository"
-	"github.com/i2y/d2mcp/internal/security/assets"
-	"github.com/i2y/d2mcp/internal/security/remote"
-	"github.com/i2y/d2mcp/internal/security/workspace"
+	"github.com/recursivefunctions/d2mcp/internal/domain/entity"
+	"github.com/recursivefunctions/d2mcp/internal/domain/repository"
+	"github.com/recursivefunctions/d2mcp/internal/security/assets"
+	"github.com/recursivefunctions/d2mcp/internal/security/remote"
+	"github.com/recursivefunctions/d2mcp/internal/security/workspace"
 )
 
 // D2Repository implements the DiagramRepository interface using D2.

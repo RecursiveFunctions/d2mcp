@@ -12,9 +12,9 @@ import (
 	"github.com/d2lang/d2/d2graph"
 	"github.com/d2lang/d2/d2oracle"
 
-	"github.com/i2y/d2mcp/internal/domain/entity"
-	"github.com/i2y/d2mcp/internal/domain/repository"
-	"github.com/i2y/d2mcp/internal/security/workspace"
+	"github.com/recursivefunctions/d2mcp/internal/domain/entity"
+	"github.com/recursivefunctions/d2mcp/internal/domain/repository"
+	"github.com/recursivefunctions/d2mcp/internal/security/workspace"
 )
 
 // OracleSession represents an active Oracle editing session
