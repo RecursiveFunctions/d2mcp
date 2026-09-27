@@ -1,4 +1,4 @@
-module github.com/i2y/d2mcp
+module github.com/recursivefunctions/d2mcp
 
 go 1.27.0
 

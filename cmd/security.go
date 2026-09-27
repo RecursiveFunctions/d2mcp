@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/i2y/d2mcp/internal/security/remote"
-	"github.com/i2y/d2mcp/internal/security/workspace"
+	"github.com/recursivefunctions/d2mcp/internal/security/remote"
+	"github.com/recursivefunctions/d2mcp/internal/security/workspace"
 )
 
 type workspaceRootFlags []string

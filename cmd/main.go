@@ -11,11 +11,11 @@ import (
 
 	mcpapi "github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/i2y/d2mcp/internal/catalog"
-	"github.com/i2y/d2mcp/internal/infrastructure/d2"
-	"github.com/i2y/d2mcp/internal/infrastructure/mcp"
-	"github.com/i2y/d2mcp/internal/presentation/handler"
-	"github.com/i2y/d2mcp/internal/usecase"
+	"github.com/recursivefunctions/d2mcp/internal/catalog"
+	"github.com/recursivefunctions/d2mcp/internal/infrastructure/d2"
+	"github.com/recursivefunctions/d2mcp/internal/infrastructure/mcp"
+	"github.com/recursivefunctions/d2mcp/internal/presentation/handler"
+	"github.com/recursivefunctions/d2mcp/internal/usecase"
 )
 
 const (

@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/i2y/d2mcp/internal/domain/entity"
+	"github.com/recursivefunctions/d2mcp/internal/domain/entity"
 )
 
 // OracleRepository defines Oracle API operations for incremental diagram manipulation
