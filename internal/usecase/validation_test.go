@@ -6,8 +6,8 @@ import (
 	"io"
 	"testing"
 
-	"github.com/i2y/d2mcp/internal/domain/entity"
-	d2infra "github.com/i2y/d2mcp/internal/infrastructure/d2"
+	"github.com/recursivefunctions/d2mcp/internal/domain/entity"
+	d2infra "github.com/recursivefunctions/d2mcp/internal/infrastructure/d2"
 )
 
 type validationRepository struct {

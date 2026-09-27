@@ -73,7 +73,7 @@ The embedded capability catalog is based on the official [D2 language tour](http
 
 ```bash
 # Clone the repository
-git clone https://github.com/i2y/d2mcp.git
+git clone https://github.com/recursivefunctions/d2mcp.git
 cd d2mcp
 
 # Build the binary
@@ -86,8 +86,24 @@ make build-all
 ### Using Go Install
 
 ```bash
-go install github.com/i2y/d2mcp/cmd@latest
+go install github.com/recursivefunctions/d2mcp/cmd@latest
 ```
+
+### Using Docker
+
+```bash
+docker run --rm -i \
+  --mount type=bind,src="$PWD",dst=/workspace \
+  ghcr.io/recursivefunctions/d2mcp:0.5.0
+```
+
+The image defaults to STDIO transport and confines local imports, assets, and exports to the mounted `/workspace` directory. The container runs as a non-root user, so the mounted directory must be writable by that user when saving exports.
+
+### MCP Registry
+
+Release tags publish the server as `io.github.recursivefunctions/d2mcp` in the official MCP Registry. After the first release succeeds, open the VS Code Extensions view and search for `@mcp d2mcp`, or use **MCP: Add Server** from the Command Palette.
+
+Compatible clients can also use the portable [`.mcp.json`](.mcp.json) configuration in this repository. It requires Docker and mounts the current workspace at `/workspace`.
 
 ## Building
 
