@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing release version to republish
+        required: true
+        default: "0.5.0"
 
 permissions:
   contents: read
@@ -26,7 +32,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag_version="${GITHUB_REF_NAME#v}"
+          tag_version="${{ inputs.version || '' }}"
+          if [ -z "$tag_version" ]; then
+            tag_version="${GITHUB_REF_NAME#v}"
+          fi
           server_version="$(jq -r '.version' server.json)"
           image_version="$(jq -r '.packages[] | select(.registryType == "oci") | .identifier' server.json | awk -F: '{print $NF}')"
           binary_version="$(sed -n 's/^[[:space:]]*ServerVersion = "\([^"]*\)"/\1/p' cmd/main.go)"
@@ -56,7 +65,7 @@ jobs:
           push: true
           tags: ghcr.io/recursivefunctions/d2mcp:${{ steps.version.outputs.value }}
           labels: |
-            io.modelcontextprotocol.server.name=io.github.recursivefunctions/d2mcp
+            io.modelcontextprotocol.server.name=io.github.RecursiveFunctions/d2mcp
           provenance: mode=max
           sbom: true
 

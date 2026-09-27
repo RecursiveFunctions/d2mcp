@@ -101,7 +101,7 @@ The image defaults to STDIO transport and confines local imports, assets, and ex
 
 ### MCP Registry
 
-Release tags publish the server as `io.github.recursivefunctions/d2mcp` in the official MCP Registry. After the first release succeeds, open the VS Code Extensions view and search for `@mcp d2mcp`, or use **MCP: Add Server** from the Command Palette.
+Release tags publish the server as `io.github.RecursiveFunctions/d2mcp` in the official MCP Registry. After the first release succeeds, open the VS Code Extensions view and search for `@mcp d2mcp`, or use **MCP: Add Server** from the Command Palette.
 
 Compatible clients can also use the portable [`.mcp.json`](.mcp.json) configuration in this repository. It requires Docker and mounts the current workspace at `/workspace`.
 

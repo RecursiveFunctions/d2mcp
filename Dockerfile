@@ -24,7 +24,7 @@ LABEL org.opencontainers.image.title="d2mcp" \
       org.opencontainers.image.description="D2 diagram generation and editing MCP server" \
       org.opencontainers.image.source="https://github.com/recursivefunctions/d2mcp" \
       org.opencontainers.image.licenses="MIT" \
-      io.modelcontextprotocol.server.name="io.github.recursivefunctions/d2mcp"
+      io.modelcontextprotocol.server.name="io.github.RecursiveFunctions/d2mcp"
 
 WORKDIR /workspace
 COPY --from=build /out/d2mcp /usr/local/bin/d2mcp

@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.recursivefunctions/d2mcp",
+  "name": "io.github.RecursiveFunctions/d2mcp",
   "title": "D2 MCP Server",
   "description": "Create, edit, validate, render, and export D2 diagrams with confined workspace access.",
   "repository": {
