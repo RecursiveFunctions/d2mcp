@@ -4,80 +4,212 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Existing release version to republish
-        required: true
-        default: "0.5.0"
-
 permissions:
   contents: read
-  id-token: write
-  packages: write
 
 jobs:
-  publish:
+  validate:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v5
-
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Verify release version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: integrations/vscode/package-lock.json
+      - name: Verify release identity
         id: version
         shell: bash
         run: |
           set -euo pipefail
-          tag_version="${{ inputs.version || '' }}"
-          if [ -z "$tag_version" ]; then
-            tag_version="${GITHUB_REF_NAME#v}"
-          fi
+          version="${GITHUB_REF_NAME#v}"
           server_version="$(jq -r '.version' server.json)"
           image_version="$(jq -r '.packages[] | select(.registryType == "oci") | .identifier' server.json | awk -F: '{print $NF}')"
-          binary_version="$(sed -n 's/^[[:space:]]*ServerVersion = "\([^"]*\)"/\1/p' cmd/main.go)"
-          test "$tag_version" = "$server_version"
-          test "$tag_version" = "$image_version"
-          test "$tag_version" = "$binary_version"
-          echo "value=$tag_version" >> "$GITHUB_OUTPUT"
+          binary_version="$(sed -n 's/^[[:space:]]*ServerVersion = "\\([^"]*\\)"/\\1/p' cmd/main.go)"
+          extension_version="$(jq -r '.version' integrations/vscode/package.json)"
+          test "$version" = "$server_version"
+          test "$version" = "$image_version"
+          test "$version" = "$binary_version"
+          test "$version" = "$extension_version"
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: go run ./cmd/generate-adapters -check
+      - name: Build companion extension
+        working-directory: integrations/vscode
+        run: npm ci && npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d2mcp-vsix
+          path: integrations/vscode/*.vsix
+          if-no-files-found: error
 
-      - name: Test
-        run: go test -race ./...
-
+  image:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v5
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: docker/setup-qemu-action@v4
-
       - uses: docker/setup-buildx-action@v4
-
-      - name: Build and publish image
+      - name: Build and publish immutable image
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/recursivefunctions/d2mcp:${{ steps.version.outputs.value }}
+          tags: ghcr.io/recursivefunctions/d2mcp:${{ needs.validate.outputs.version }}
           labels: |
             io.modelcontextprotocol.server.name=io.github.RecursiveFunctions/d2mcp
+            org.opencontainers.image.version=${{ needs.validate.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
           provenance: mode=max
           sbom: true
+      - name: Verify published platforms
+        run: |
+          docker buildx imagetools inspect \
+            "ghcr.io/recursivefunctions/d2mcp@${{ steps.build.outputs.digest }}" \
+            --format '{{json .Manifest}}' > /tmp/manifest.json
+          grep -q 'linux/amd64' /tmp/manifest.json
+          grep -q 'linux/arm64' /tmp/manifest.json
 
+  registry:
+    needs: [validate, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
       - name: Install MCP publisher
         run: |
           curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+      - run: ./mcp-publisher validate server.json
+      - run: ./mcp-publisher login github-oidc
+      - run: ./mcp-publisher publish server.json
+      - name: Verify Registry record
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          response="$(curl -fsSLG https://registry.modelcontextprotocol.io/v0.1/servers \
+            --data-urlencode 'search=io.github.RecursiveFunctions/d2mcp' \
+            --data-urlencode "version=$VERSION")"
+          test "$(jq -r '.metadata.count' <<<"$response")" = "1"
+          test "$(jq -r '.servers[0].server.version' <<<"$response")" = "$VERSION"
 
-      - name: Validate registry metadata
-        run: ./mcp-publisher validate server.json
+  marketplaces:
+    needs: [validate, image, registry]
+    runs-on: ubuntu-latest
+    env:
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: integrations/vscode/package-lock.json
+      - uses: actions/download-artifact@v5
+        with:
+          name: d2mcp-vsix
+          path: artifacts
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        run: npx --yes ovsx publish artifacts/*.vsix -p "$OVSX_PAT"
+      - name: Publish to Visual Studio Marketplace
+        if: env.VSCE_PAT != ''
+        run: npx --yes @vscode/vsce publish --packagePath artifacts/*.vsix -p "$VSCE_PAT"
 
-      - name: Authenticate to MCP Registry
-        run: ./mcp-publisher login github-oidc
+  github-release:
+    needs: [validate, image, registry, marketplaces]
+    if: ${{ always() && needs.validate.result == 'success' && needs.image.result == 'success' && needs.registry.result == 'success' && (needs.marketplaces.result == 'success' || needs.marketplaces.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          name: d2mcp-vsix
+          path: artifacts
+      - name: Build adapter bundle and checksums
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          DIGEST: ${{ needs.image.outputs.digest }}
+        run: |
+          jq --arg digest "$DIGEST" --arg revision "$GITHUB_SHA" \
+            '. + {digest: $digest, revision: $revision}' \
+            distribution/generated/release.json > artifacts/release.json
+          tar -czf "artifacts/d2mcp-adapters-$VERSION.tar.gz" distribution/generated .mcp.json
+          cd artifacts
+          sha256sum * > SHA256SUMS
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" artifacts/* --verify-tag --generate-notes
 
-      - name: Publish to MCP Registry
-        run: ./mcp-publisher publish server.json
+  curated-catalogs:
+    needs: [validate, image, registry]
+    runs-on: ubuntu-latest
+    env:
+      MARKETPLACE_GITHUB_TOKEN: ${{ secrets.MARKETPLACE_GITHUB_TOKEN }}
+      KILO_FORK: ${{ vars.KILO_FORK }}
+      CLINE_LOGO_URL: ${{ vars.CLINE_LOGO_URL }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Update Kilo Marketplace pull request
+        if: env.MARKETPLACE_GITHUB_TOKEN != '' && env.KILO_FORK != ''
+        env:
+          GH_TOKEN: ${{ env.MARKETPLACE_GITHUB_TOKEN }}
+          VERSION: ${{ needs.validate.outputs.version }}
+          DIGEST: ${{ needs.image.outputs.digest }}
+        run: |
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${KILO_FORK}.git" /tmp/kilo-marketplace
+          cd /tmp/kilo-marketplace
+          git remote add upstream https://github.com/Kilo-Org/kilo-marketplace.git
+          git fetch upstream main
+          git checkout -B automation/d2mcp-release upstream/main
+          mkdir -p mcps/d2mcp
+          cp "$GITHUB_WORKSPACE/distribution/generated/kilo/MCP.yaml" mcps/d2mcp/MCP.yaml
+          git config user.name d2mcp-release-bot
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add mcps/d2mcp/MCP.yaml
+          git diff --cached --quiet && exit 0
+          git commit -m "Update d2mcp to $VERSION"
+          git push --force-with-lease origin automation/d2mcp-release
+          head="${KILO_FORK%%/*}:automation/d2mcp-release"
+          if [ "$(gh pr list --repo Kilo-Org/kilo-marketplace --head "$head" --state open --json number --jq length)" = "0" ]; then
+            gh pr create --repo Kilo-Org/kilo-marketplace --head "$head" \
+              --base main --title "Update d2mcp to $VERSION" \
+              --body "Updates d2mcp to $VERSION ($DIGEST). Official Registry: io.github.RecursiveFunctions/d2mcp."
+          fi
+      - name: Submit to Cline Marketplace
+        if: env.MARKETPLACE_GITHUB_TOKEN != '' && env.CLINE_LOGO_URL != ''
+        env:
+          GH_TOKEN: ${{ env.MARKETPLACE_GITHUB_TOKEN }}
+        run: |
+          title="Add D2 MCP Server"
+          if [ "$(gh issue list --repo cline/mcp-marketplace --search \"$title in:title\" --state all --json number --jq length)" = "0" ]; then
+            cp distribution/generated/cline/submission.md /tmp/cline-submission.md
+            printf '\nLogo: %s\n\n%s\n' "$CLINE_LOGO_URL" \
+              "The Docker installation documented in README.md has been tested with MCP initialize and tools/list." \
+              >> /tmp/cline-submission.md
+            gh issue create --repo cline/mcp-marketplace --title "$title" --body-file /tmp/cline-submission.md
+          fi

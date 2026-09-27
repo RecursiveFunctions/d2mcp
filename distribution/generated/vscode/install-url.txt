@@ -1,0 +1,1 @@
+vscode:mcp/install?%7B%22name%22%3A%22d2mcp%22%2C%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22--rm%22%2C%22-i%22%2C%22--mount%22%2C%22type%3Dbind%2Csrc%3D%24%7BworkspaceFolder%7D%2Cdst%3D%2Fworkspace%22%2C%22ghcr.io%2Frecursivefunctions%2Fd2mcp%3A0.5.0%22%5D%7D

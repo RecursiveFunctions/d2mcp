@@ -1,0 +1,13 @@
+publisher: RecursiveFunctions
+extension_id: d2mcp
+author: RecursiveFunctions
+category: development
+workspace_target: /workspace
+clients:
+  portable: ${workspaceFolder}
+  cursor: ${workspaceFolder}
+  windsurf: ${workspaceFolder}
+  trae: ${workspaceFolder}
+  antigravity: ${workspaceFolder}
+  zed: /absolute/path/to/workspace
+  kilo: "{{WORKSPACE_PATH}}"

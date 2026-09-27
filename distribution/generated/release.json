@@ -1,0 +1,7 @@
+{
+  "extensionId": "d2mcp",
+  "image": "ghcr.io/recursivefunctions/d2mcp:0.5.0",
+  "publisher": "RecursiveFunctions",
+  "server": "io.github.RecursiveFunctions/d2mcp",
+  "version": "0.5.0"
+}

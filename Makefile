@@ -1,4 +1,4 @@
-.PHONY: build run run-stdio run-sse run-streamable clean test fmt lint
+.PHONY: build run run-stdio run-sse run-streamable clean test fmt lint generate-adapters verify-adapters
 
 # Binary name.
 BINARY_NAME=d2mcp
@@ -38,6 +38,14 @@ fmt:
 # Run linter.
 lint:
 	golangci-lint run
+
+# Generate client adapters from canonical release metadata.
+generate-adapters:
+	go run ./cmd/generate-adapters
+
+# Fail when committed client adapters are stale.
+verify-adapters:
+	go run ./cmd/generate-adapters -check
 
 # Install dependencies.
 deps:

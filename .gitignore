@@ -1,1 +1,4 @@
 d2mcp
+integrations/vscode/node_modules/
+integrations/vscode/dist/
+integrations/vscode/*.vsix

@@ -1,5 +1,5 @@
 {
-  "mcpServers": {
+  "context_servers": {
     "d2mcp": {
       "command": "docker",
       "args": [
@@ -7,7 +7,7 @@
         "--rm",
         "-i",
         "--mount",
-        "type=bind,src=${workspaceFolder},dst=/workspace",
+        "type=bind,src=/absolute/path/to/workspace,dst=/workspace",
         "ghcr.io/recursivefunctions/d2mcp:0.5.0"
       ]
     }

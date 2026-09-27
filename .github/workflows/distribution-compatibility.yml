@@ -1,0 +1,44 @@
+name: Distribution Compatibility
+
+on:
+  schedule:
+    - cron: "17 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  adapters:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./internal/distribution ./cmd/generate-adapters
+      - run: go run ./cmd/generate-adapters -check
+      - name: Verify Official Registry record
+        run: |
+          version="$(jq -r '.version' server.json)"
+          response="$(curl -fsSLG https://registry.modelcontextprotocol.io/v0.1/servers \
+            --data-urlencode 'search=io.github.RecursiveFunctions/d2mcp' \
+            --data-urlencode "version=$version")"
+          test "$(jq -r '.metadata.count' <<<"$response")" = "1"
+          test "$(jq -r '.servers[0].server.version' <<<"$response")" = "$version"
+
+  extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/vscode
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: integrations/vscode/package-lock.json
+      - run: npm ci
+      - run: npm run package

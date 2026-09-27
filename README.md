@@ -101,9 +101,27 @@ The image defaults to STDIO transport and confines local imports, assets, and ex
 
 ### MCP Registry
 
-Release tags publish the server as `io.github.RecursiveFunctions/d2mcp` in the official MCP Registry. After the first release succeeds, open the VS Code Extensions view and search for `@mcp d2mcp`, or use **MCP: Add Server** from the Command Palette.
+Release tags publish the server as `io.github.RecursiveFunctions/d2mcp` in the official MCP Registry. Registry publication and editor-gallery indexing are separate, so a newly published version might not appear immediately in an editor's search results.
 
 Compatible clients can also use the portable [`.mcp.json`](.mcp.json) configuration in this repository. It requires Docker and mounts the current workspace at `/workspace`.
+
+### Editor Integrations
+
+Client configurations are generated from [`server.json`](server.json), so they always use the same immutable container version.
+
+| Client | Installation |
+|---|---|
+| VS Code | Use the [installation URL](distribution/generated/vscode/install-url.txt), Official MCP Registry, or companion extension |
+| VSCodium and Positron | Install the `RecursiveFunctions.d2mcp` companion extension from Open VSX |
+| Cursor | Use the generated [MCP configuration](distribution/generated/cursor/mcp.json) |
+| Windsurf | Use the generated [MCP configuration](distribution/generated/windsurf/mcp.json) |
+| Trae | Use the generated [install URL](distribution/generated/trae/install-url.txt) or [project configuration](distribution/generated/trae/mcp.json) |
+| Antigravity | Use the generated [MCP configuration](distribution/generated/antigravity/mcp.json) |
+| Zed | Use the generated [manual configuration](distribution/generated/zed/mcp.json) while Zed completes Official Registry integration |
+| Kilo Code | Install from Kilo Marketplace after its catalog PR is accepted, or use the portable configuration |
+| Cline | Install from Cline Marketplace after curator approval, or follow the Docker instructions above |
+
+Run `make generate-adapters` after changing release metadata. CI runs `make verify-adapters` and rejects stale client configurations.
 
 ## Building
 
