@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/i2y/d2mcp/internal/domain/entity"
+	"github.com/recursivefunctions/d2mcp/internal/domain/entity"
 )
 
 func TestD2RepositoryValidate(t *testing.T) {

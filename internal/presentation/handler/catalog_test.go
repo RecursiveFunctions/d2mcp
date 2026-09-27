@@ -7,7 +7,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/i2y/d2mcp/internal/catalog"
+	"github.com/recursivefunctions/d2mcp/internal/catalog"
 )
 
 func TestHelpHandlerReturnsExactResource(t *testing.T) {
