@@ -1,0 +1,37 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.recursivefunctions/d2mcp",
+  "title": "D2 MCP Server",
+  "description": "Create, edit, validate, render, and export D2 diagrams with confined workspace access.",
+  "repository": {
+    "url": "https://github.com/recursivefunctions/d2mcp",
+    "source": "github"
+  },
+  "version": "0.5.0",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/recursivefunctions/d2mcp:0.5.0",
+      "runtimeHint": "docker",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--mount",
+          "description": "Mount a host workspace directory for D2 imports, assets, and exports.",
+          "value": "type=bind,src={workspace_path},dst=/workspace",
+          "isRequired": true,
+          "variables": {
+            "workspace_path": {
+              "description": "Host workspace directory",
+              "format": "filepath",
+              "isRequired": true
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
