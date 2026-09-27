@@ -6,7 +6,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/i2y/d2mcp/internal/domain/entity"
+	"github.com/recursivefunctions/d2mcp/internal/domain/entity"
 )
 
 // Mock Oracle Repository for testing

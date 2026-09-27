@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/i2y/d2mcp/internal/domain/entity"
-	"github.com/i2y/d2mcp/internal/domain/repository"
+	"github.com/recursivefunctions/d2mcp/internal/domain/entity"
+	"github.com/recursivefunctions/d2mcp/internal/domain/repository"
 )
 
 // OracleUseCase implements business logic for Oracle operations

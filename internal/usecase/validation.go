@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/i2y/d2mcp/internal/domain/entity"
+	"github.com/recursivefunctions/d2mcp/internal/domain/entity"
 )
 
 const maxRepairPasses = 4
